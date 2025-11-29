@@ -138,44 +138,60 @@ void K4a::Save_Image(int amount, std::string output_dir)
 void K4a::Color_With_Mask(cv::Mat &image_cv_color, yolo::BoxArray &objs)
 {
     // Cycle through all objectives, frames, and labels
+    if (objs.empty())
+    {
+        return;
+    }
+
     for (auto &obj : objs)
     {
-        if (obj.left >= 0 && obj.right < image_cv_color.cols && obj.top >= 0 && obj.bottom <= image_cv_color.rows)
+        int left = cvRound(obj.left);
+        int top = cvRound(obj.top);
+        int right = cvRound(obj.right);
+        int bottom = cvRound(obj.bottom);
+
+        if (left < 0 || top < 0 ||
+            right >= image_cv_color.cols ||
+            bottom >= image_cv_color.rows)
+            continue;
+
+        // --- draw bounding box ---
+        auto [b, g, r] = yolo::random_color(obj.class_label);
+        cv::Scalar color(b, g, r);
+
+        cv::rectangle(image_cv_color,
+                      cv::Point(left, top),
+                      cv::Point(right, bottom),
+                      color, 3);
+
+        // --- label ---
+        std::string caption = cv::format("%s %.2f", labels[obj.class_label], obj.confidence);
+        int text_width = cv::getTextSize(caption, 0, 1, 2, nullptr).width + 10;
+
+        int label_top = cvRound(obj.top - 30);
+        cv::rectangle(image_cv_color,
+                      cv::Point(left, label_top),
+                      cv::Point(left + cvRound(text_width), top),
+                      color, -1);
+
+        cv::putText(image_cv_color, caption,
+                    cv::Point(left + 3, top - 7),
+                    0, 1.0, cv::Scalar(0, 0, 0), 2);
+
+        // --- segmentation mask ---
+        if (obj.seg && obj.seg->data)
         {
-            uint8_t b, g, r;
-            std::tie(b, g, r) = yolo::random_color(obj.class_label);
-            cv::rectangle(image_cv_color, cv::Point(obj.left, obj.top), cv::Point(obj.right, obj.bottom),
-                          cv::Scalar(b, g, r), 5);
-            auto name = labels[obj.class_label];
-            auto caption = cv::format("%s %.2f", name, obj.confidence);
-            int width = cv::getTextSize(caption, 0, 1, 2, nullptr).width + 10;
-            cv::rectangle(image_cv_color, cv::Point(obj.left - 3, obj.top - 33),
-                          cv::Point(obj.left + width, obj.top), cv::Scalar(b, g, r), -1);
-            cv::putText(image_cv_color, caption, cv::Point(obj.left, obj.top - 5), 0, 1, cv::Scalar::all(0), 2, 16);
-            if (obj.seg && obj.seg->data != nullptr)
-            {
-                if (obj.left >= 0 && obj.seg->width >= 0 && obj.left + obj.seg->width < image_cv_color.cols &&
-                    obj.top >= 0 && obj.seg->height >= 0 && obj.top + obj.seg->height <= image_cv_color.rows)
-                {
+            cv::Mat mask(obj.seg->height, obj.seg->width, CV_8UC1, obj.seg->data);
 
-                    cv::Mat mask = cv::Mat(obj.seg->height, obj.seg->width, CV_8U, obj.seg->data);
-                    mask.convertTo(mask, CV_8UC1);
+            int w = right - left;
+            int h = bottom - top;
+            cv::resize(mask, mask, cv::Size(w, h));
 
-                    // Ensure mask dimensions are valid before resizing
-                    int mask_width = std::max(1, static_cast<int>(obj.right - obj.left));
-                    int mask_height = std::max(1, static_cast<int>(obj.bottom - obj.top));
+            cv::Mat mask_color;
+            cv::cvtColor(mask, mask_color, cv::COLOR_GRAY2BGR);
 
-                    // Resize mask to fit the bounding box
-                    cv::resize(mask, mask, cv::Size(mask_width, mask_height), 0, 0, cv::INTER_LINEAR);
-                    cv::cvtColor(mask, mask, cv::COLOR_GRAY2BGR); // Convert to 3-channel image
-
-                    // Ensure that the image region and mask have the same size
-                    cv::Mat region = image_cv_color(cv::Rect(obj.left, obj.top, mask_width, mask_height));
-                    cv::addWeighted(region, 0.5, mask, 0.5, 0.0, region); // Blend mask onto the image region
-
-                    mask.copyTo(image_cv_color(cv::Rect(obj.left, obj.top, mask_width, mask_height)));
-                }
-            }
+            cv::Mat roi = image_cv_color(cv::Rect(left, top, w, h));
+            cv::addWeighted(roi, 0.5, mask_color, 0.5, 0, roi);
         }
     }
 }
@@ -276,12 +292,24 @@ BoundingBox3D K4a::Value_Mask_to_Pcl(
         bbox.center.z /= valid_points;
 
         // 计算主方向（相机方向角度）
-        float X = bbox.center.x;
-        float Y = bbox.center.y;
-        float Z = bbox.center.z;
+        float Xc = bbox.center.x;
+        float Yc = bbox.center.y;
+        float Zc = bbox.center.z;
 
-        float yaw = atan2(X, Z);    // 左右角度
-        float pitch = atan2(-Y, Z); // 上下角度（负号修正坐标系）
+        // 相机 → 机器人坐标转换
+        // 变换矩阵 (参数)
+        float tx = 0.175f;
+        float ty = -0.32851f;
+        float tz = 0.701f;
+
+        // 旋转（roll = -90°）
+        bbox.center.x = 1 * Xc + 0 * Yc + 0 * Zc + tx;
+        bbox.center.y = 0 * Xc + 0 * Yc + 1 * Zc + ty;
+        bbox.center.z = 0 * Xc - 1 * Yc + 0 * Zc + tz;
+
+        // 用机器人坐标系计算角度
+        float yaw = atan2(bbox.center.x, bbox.center.z);    // 左右
+        float pitch = atan2(-bbox.center.y, bbox.center.z); // 上下
 
         bbox.principal_dir = cv::Vec3f(yaw, pitch, 0);
     }

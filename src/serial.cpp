@@ -12,11 +12,23 @@ serial::Serial ser;
 // 回调函数
 void targetCallback(const std_msgs::String::ConstPtr& msg)
 {
-    // 假设 msg->data 格式为 "cls_ID x y z"
-    std::istringstream ss(msg->data);
-    int cls_ID;
-    float x, y, z;
-    ss >> cls_ID >> x >> y >> z;
+    std::vector<std::string> parts;
+    std::stringstream ss(msg->data);
+    std::string item;
+
+    while (std::getline(ss, item, ',')) {
+        parts.push_back(item);
+    }
+
+    if (parts.size() != 4) {
+        ROS_WARN("Invalid target_info format: %s", msg->data.c_str());
+        return;
+    }
+
+    int cls_ID = std::stoi(parts[0]);
+    float x = std::stof(parts[1]);
+    float y = std::stof(parts[2]);
+    float z = std::stof(parts[3]);
 
     // 构造发送帧
     std::vector<uint8_t> frame;
@@ -45,14 +57,14 @@ void targetCallback(const std_msgs::String::ConstPtr& msg)
         ser.write(frame);
     }
 
-    // 打印调试信息
-    std::ostringstream oss;
-    oss << "Sent frame (" << frame.size() << " bytes): ";
-    for (auto b : frame) {
-        oss << std::uppercase << std::setfill('0') << std::setw(2) 
-            << std::hex << static_cast<int>(b) << " ";
-    }
-    ROS_INFO_STREAM(oss.str());
+//     // 打印调试信息
+//     std::ostringstream oss;
+//     oss << "Sent frame (" << frame.size() << " bytes): ";
+//     for (auto b : frame) {
+//         oss << std::uppercase << std::setfill('0') << std::setw(2) 
+//             << std::hex << static_cast<int>(b) << " ";
+//     }
+//     ROS_INFO_STREAM(oss.str());
 }
 
 int main(int argc, char** argv)

@@ -112,6 +112,10 @@ void RealSense::Infrared_to_Cv(cv::Mat &image_cv_infrared_left, cv::Mat &image_c
 void RealSense::Color_With_Mask(cv::Mat &image_cv_color, yolo::BoxArray objs)
 {
     // Cycle through all objectives, frames, and labels
+    if (objs.empty())
+    {
+        return;
+    }
     for (auto &obj : objs)
     {
         if (obj.left >= 0 && obj.right < image_cv_color.cols && obj.top >= 0 && obj.bottom <= image_cv_color.rows)
@@ -123,9 +127,9 @@ void RealSense::Color_With_Mask(cv::Mat &image_cv_color, yolo::BoxArray objs)
             auto name = labels[obj.class_label];
             auto caption = cv::format("%s %.2f", name, obj.confidence);
             int width = cv::getTextSize(caption, 0, 1, 2, nullptr).width + 10;
-            cv::rectangle(image_cv_color, cv::Point(obj.left - 3, obj.top - 33),
+            cv::rectangle(image_cv_color, cv::Point(obj.left, obj.top),
                           cv::Point(obj.left + width, obj.top), cv::Scalar(b, g, r), -1);
-            cv::putText(image_cv_color, caption, cv::Point(obj.left, obj.top - 5), 0, 1, cv::Scalar::all(0), 2, 16);
+            cv::putText(image_cv_color, caption, cv::Point(obj.left, obj.top), 0, 1, cv::Scalar::all(0), 2, 16);
             if (obj.seg && obj.seg->data != nullptr)
             {
                 if (obj.left >= 0 && obj.seg->width >= 0 && obj.left + obj.seg->width < image_cv_color.cols &&

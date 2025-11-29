@@ -6,11 +6,7 @@
 第三行保存地址也改一下
 可以直接运行  
 ```
-/home/li/TensorRT-8.6.1.6/bin/trtexec \
-    --onnx=/home/li/camera_cxx/workspace/model_generate/yolo_dete_full2/weights/best.onnx \
-    --saveEngine=/home/li/camera_cxx/workspace/model_generate/yolo_dete_full2/weights/best.engine \
-    --fp16 \
-    --workspace=4096
+                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                     
 ```
 * 也可以把路径加到环境变量中  
 * `echo 'export PATH=$HOME/TensorRT-8.6.1.6/bin:$PATH' >> ~/.bashrc`
