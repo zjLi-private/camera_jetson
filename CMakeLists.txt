@@ -18,9 +18,6 @@ find_package(PCL REQUIRED)
 find_package(k4a REQUIRED)
 find_package(CUDA REQUIRED)
 
-message(STATUS "=== OpenCV version found by CMake: ${OpenCV_VERSION} ===")
-message(STATUS "OpenCV include dirs: ${OpenCV_INCLUDE_DIRS}")
-message(STATUS "OpenCV libraries   : ${OpenCV_LIBS}")
 
 if (NOT TARGET CUDA::cudart)
     add_library(CUDA::cudart INTERFACE IMPORTED)
@@ -66,7 +63,7 @@ if(BUILD_WITH_ROS)
 endif()
 
 
-# ---- 链接路径 ----
+# 链接路径 
 link_directories(
     ${TensorRT_ROOT}/lib/aarch64-linux-gnu
     ${CUDA_ROOT}/targets/aarch64-linux/lib
@@ -74,7 +71,7 @@ link_directories(
     /usr/local/lib
 )
 
-# ---- YOLO子模块 ----
+# YOLO子模块
 add_subdirectory(src/yolo)
 
 
@@ -97,13 +94,13 @@ set(COMMON_LIBS
 # )
 
 
-#---K4A---
-add_executable(k4a_detect src/k4a_detect.cpp src/camera_k4a.cpp src/myinfer.cpp src/yolo/yolo.cu)
-target_link_libraries(k4a_detect PRIVATE
+# #---K4A---
+# add_executable(k4a_detect src/k4a_detect.cpp src/camera_k4a.cpp src/myinfer.cpp src/yolo/yolo.cu)
+# target_link_libraries(k4a_detect PRIVATE
 
-    k4a::k4a
-    ${COMMON_LIBS}
-)
+#     k4a::k4a
+#     ${COMMON_LIBS}
+# )
 
 # #---one_eye---
 # add_executable(one_eye src/one_eye.cpp src/myinfer.cpp src/yolo/yolo.cu src/realsense.cpp)
@@ -142,10 +139,7 @@ if(BUILD_WITH_ROS)
         -lffi
     )
 
-    install(TARGETS k4a_detect_ros
-        RUNTIME DESTINATION ${CATKIN_PACKAGE_BIN_DESTINATION}
-    )
-        add_executable(k4a_serial_node src/serial.cpp)
+    add_executable(k4a_serial_node src/serial.cpp)
     target_link_libraries(k4a_serial_node
         ${catkin_LIBRARIES}
     )
@@ -166,7 +160,6 @@ if(BUILD_WITH_ROS)
     #     pthread
     #     -lffi
     # )
-    # install(TARGETS rs_detect_ros RUNTIME DESTINATION ${CATKIN_PACKAGE_BIN_DESTINATION})
 
     # #---one_eye_ros---
     # add_executable(one_eye_ros src/one_eye.cpp src/myinfer.cpp src/yolo/yolo.cu src/realsense.cpp)
@@ -184,8 +177,7 @@ if(BUILD_WITH_ROS)
     #     pthread
     #     -lffi
     # )
-    # install(TARGETS one_eye_ros RUNTIME DESTINATION ${CATKIN_PACKAGE_BIN_DESTINATION})
-
+   
     #---dynamic_recog---#
     # add_executable(dynamic_recog_ros src/dynamic_recog.cpp src/grid_state.cpp src/camera_k4a.cpp src/myinfer.cpp src/yolo/yolo.cu src/ros_interface.cpp)
     # target_include_directories(dynamic_recog_ros PRIVATE
@@ -206,8 +198,6 @@ if(BUILD_WITH_ROS)
     #     -lffi
     # )
 
-    # install(TARGETS dynamic_recog_ros
-    #     RUNTIME DESTINATION ${CATKIN_PACKAGE_BIN_DESTINATION}
-    # )
+
 
 endif()
