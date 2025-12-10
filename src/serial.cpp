@@ -1,145 +1,4 @@
-#include <ros/ros.h>
-#include <serial/serial.h>
-#include <std_msgs/String.h>
-#include <thread>
-#include <sstream>
-#include <vector>
-#include <cstring>   // memcpy
-#include <iomanip>   // setw setfill
-#include <limits>
-#include <exception>
-
-serial::Serial ser;
-
-// 包头包尾（binary）
-const uint8_t K4A_HEAD[2] = {0xFF, 0xFE};
-const uint8_t K4A_TAIL[2] = {0xAA, 0xDD};
-
-// 解析 k4a bbox 的字符串并生成串口二进制 payload
-// 输入示例: "1,12.3,45.6,78.9,0.123"  --> 5 个字段，最后一个为 yaw
-// 输出 payload: [ID(1B)] [x(4B float)] [y(4B float)] [z(4B float)] [yaw(4B float)]
-bool parseBBoxString(const std::string &msg, std::vector<uint8_t> &payload)
-{
-    std::stringstream ss(msg);
-    std::string token;
-    std::vector<std::string> tokens;
-
-    while (std::getline(ss, token, ','))
-        tokens.push_back(token);
-
-    // 现在期望 5 个字段： id,x,y,z,yaw
-    if (tokens.size() != 5)
-        return false;
-
-    int cls = 0;
-    float x = 0.f, y = 0.f, z = 0.f, yaw = 0.f;
-    try {
-        cls = std::stoi(tokens[0]);
-        x = std::stof(tokens[1]);
-        y = std::stof(tokens[2]);
-        z = std::stof(tokens[3]);
-        yaw = std::stof(tokens[4]);
-    } catch (const std::exception &e) {
-        ROS_WARN_STREAM("[serial_bridge] parse error: " << e.what() << " input: " << msg);
-        return false;
-    }
-
-    // 根据你的规则： cls 允许范围 1..3（之前你用 1..3）
-    if (!(cls >= 1 && cls <= 3))
-        return false;
-    // 如果 x == 0 则视为无效
-    if (x == 0.0f)
-        return false;
-
-    // 组装二进制 payload
-    payload.clear();
-    payload.push_back(static_cast<uint8_t>(cls)); // ID
-
-    auto append_float = [&](float value) {
-        uint8_t bytes[4];
-        std::memcpy(bytes, &value, sizeof(float)); // 小端序的原生 float bytes
-        payload.insert(payload.end(), bytes, bytes + 4);
-    };
-
-    append_float(x);
-    append_float(y);
-    append_float(z);
-    append_float(yaw);
-
-    return true;
-}
-
-// 回调 1：来自 k4a 的发送请求（需要加包头包尾）
-void k4aCallback(const std_msgs::String::ConstPtr &msg)
-{
-    if (!ser.isOpen()) {
-        ROS_WARN_THROTTLE(5.0, "[serial_bridge] serial port not open");
-        return;
-    }
-
-    std::vector<uint8_t> payload;
-    if (!parseBBoxString(msg->data, payload)) {
-        ROS_WARN_STREAM("[serial_bridge] Invalid k4a bbox: " << msg->data);
-        return;
-    }
-
-    // 构建帧： HEAD + payload + TAIL  （不加 checksum）
-    std::vector<uint8_t> packet;
-    packet.insert(packet.end(), K4A_HEAD, K4A_HEAD + 2);
-    packet.insert(packet.end(), payload.begin(), payload.end());
-    packet.insert(packet.end(), K4A_TAIL, K4A_TAIL + 2);
-
-    // 发送二进制数据（使用 const uint8_t*）
-    try {
-        ser.write(packet.data(), packet.size());
-    } catch (const std::exception &e) {
-        ROS_ERROR_STREAM("[serial_bridge] serial write failed: " << e.what());
-        return;
-    }
-
-    // 日志：输出 HEX 便于调试
-    std::stringstream dbg;
-    dbg << std::hex << std::uppercase;
-    for (uint8_t b : packet) {
-        dbg << std::setw(2) << std::setfill('0') << static_cast<int>(b) << " ";
-    }
-    ROS_INFO_STREAM("[serial_bridge] TX K4A -> Serial HEX: " << dbg.str());
-}
-
-// 回调 2：来自 map 节点的数据，不加包头包尾（保持原样发送字符串）
-void cmdCallback(const std_msgs::String::ConstPtr &msg)
-{
-    if (!ser.isOpen()) {
-        ROS_WARN_THROTTLE(5.0, "[serial_bridge] serial port not open");
-        return;
-    }
-
-    try {
-        // 直接发送字符串（注意：此处发送 textual data）
-        ser.write(msg->data);
-    } catch (const std::exception &e) {
-        ROS_ERROR_STREAM("[serial_bridge] serial write failed: " << e.what());
-        return;
-    }
-    ROS_INFO_STREAM("[serial_bridge] TX MAP -> Serial: " << msg->data);
-}
-
-// 串口读取线程：读到的原始二进制会作为 string (binary-safe) 发布到 /serial_rx
-void readSerialThread(ros::Publisher *pub)
-{
-    ros::Rate r(100);
-    while (ros::ok())
-    {
-        if (ser.available()) {
-            std::string recv = ser.read(ser.available());
-            std_msgs::String out;
-            out.data = recv;
-            pub->publish(out);
-            ROS_INFO_STREAM("[serial_bridge] RX: " << recv.size() << " bytes");
-        }
-        r.sleep();
-    }
-}
+#include "serial.hpp"
 
 int main(int argc, char **argv)
 {
@@ -148,7 +7,7 @@ int main(int argc, char **argv)
     ros::NodeHandle pnh("~");
 
     std::string port;
-    int baud = 115200;
+    int baud = 115200; //波特率设置
     pnh.param<std::string>("port", port, "/dev/ttyUSB0");
     pnh.param<int>("baudrate", baud, 115200);
 
@@ -172,15 +31,8 @@ int main(int argc, char **argv)
     // 订阅 k4a → 串口
     ros::Subscriber sub_k4a = nh.subscribe("/k4a/target_info", 10, k4aCallback);
 
-    // 订阅 map_matcher → 串口
-    ros::Subscriber sub_cmd = nh.subscribe("/map_tx", 10, cmdCallback);
-
     // 发布 串口 → ROS
     ros::Publisher pub_rx = nh.advertise<std_msgs::String>("/serial_rx", 10);
-
-    // 开线程读串口
-    std::thread th(readSerialThread, &pub_rx);
-    th.detach();
 
     ros::spin();
 
