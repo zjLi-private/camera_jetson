@@ -53,9 +53,9 @@ int main(
 
         bool first_cloud = true;                                                       // 第一次生成点云
         pcl::PointCloud<pcl::PointXYZ>::Ptr cloud(new pcl::PointCloud<pcl::PointXYZ>); // 定义点云指针
-        pcl::visualization::PCLVisualizer::Ptr viewer(new pcl::visualization::PCLVisualizer("PointCloud Viewer"));
-        viewer->setBackgroundColor(0, 0, 0);
-        viewer->addCoordinateSystem(0.2);
+        // pcl::visualization::PCLVisualizer::Ptr viewer(new pcl::visualization::PCLVisualizer("PointCloud Viewer"));
+        // viewer->setBackgroundColor(0, 0, 0);
+        // viewer->addCoordinateSystem(0.2);
         yolo.Yolov8_Enable(engine_path); // 检测引擎
                                          // yolo.Yolov8_Seg_Enable(engine_path); // 分割引擎适用于best.engine
 
@@ -88,26 +88,34 @@ int main(
             depth_image.convertTo(depth_display, CV_8U, 255.0 / 4000.0);
 
             k4a_device.Depth_With_Mask(depth_display, detections); // 用显示图，不用原始 CV_16U
-            
+
             if (frame_id % 5 == 0)
             {
                 std::cout << "Class_ID: " << bbox.cls_ID
                           << " Center: [" << bbox.center.x << ", "
                           << bbox.center.y << ", "
-                          << bbox.center.z << "]\n";
+                          << bbox.center.z << "."
+                          << bbox.principal_dir[0]<< "/n";
             }
 #ifdef BUILD_WITH_ROS
             // ---- 发布 ROS 简化后的消息 ----
             std_msgs::String msg;
             std::stringstream ss;
+            if (bbox.cls_ID >= 0 && bbox.cls_ID <= 2 && bbox.center.x != 0)
+            {
+                ss << bbox.cls_ID + 1 << ","
+                   << bbox.center.x << ","
+                   << bbox.center.y << ","
+                   << bbox.center.z << ","
+                   << bbox.principal_dir[0];
+            }
 
-            ss << bbox.cls_ID << ","
-               << bbox.center.x << ","
-               << bbox.center.y << ","
-               << bbox.center.z;
+            if (!ss.str().empty())
+            {
+                msg.data = ss.str();
+                target_pub.publish(msg);
+            }
 
-            msg.data = ss.str();
-            target_pub.publish(msg);
 #endif
             if (!color_image.empty())
                 cv::imshow("Detect Color Image", color_image); // 显示彩色图像
@@ -131,7 +139,7 @@ int main(
             char key = (char)cv::waitKey(10);
             if (key == 'q' || key == 27) // 按 q 或 Esc 键退出
                 break;
-            viewer->spinOnce(10); // 更新显示
+            // viewer->spinOnce(10); // 更新显示
 #ifdef BUILD_WITH_ROS
             // ROS循环控制
             ros::spinOnce();
