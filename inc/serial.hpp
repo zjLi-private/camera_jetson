@@ -2,14 +2,12 @@
 #include <thread>
 #include <sstream>
 #include <vector>
-#include <cstring>   // memcpy
-#include <iomanip>   // setw setfill
+#include <cstring> // memcpy
+#include <iomanip> // setw setfill
 #include <limits>
 #include <exception>
 #include <ros/ros.h>
 #include <serial/serial.h>
-
-
 
 serial::Serial ser;
 
@@ -34,13 +32,16 @@ bool parseBBoxString(const std::string &msg, std::vector<uint8_t> &payload)
 
     int cls = 0;
     float x = 0.f, y = 0.f, z = 0.f, yaw = 0.f;
-    try {
+    try
+    {
         cls = std::stoi(tokens[0]);
         x = std::stof(tokens[1]);
         y = std::stof(tokens[2]);
         z = std::stof(tokens[3]);
         yaw = std::stof(tokens[4]);
-    } catch (const std::exception &e) {
+    }
+    catch (const std::exception &e)
+    {
         ROS_WARN_STREAM("[serial_bridge] parse error: " << e.what() << " input: " << msg);
         return false;
     }
@@ -57,7 +58,8 @@ bool parseBBoxString(const std::string &msg, std::vector<uint8_t> &payload)
     payload.clear();
     payload.push_back(static_cast<uint8_t>(cls)); // ID
 
-    auto append_float = [&](float value) {
+    auto append_float = [&](float value)
+    {
         uint8_t bytes[4];
         std::memcpy(bytes, &value, sizeof(float)); // 小端序的原生 float bytes
         payload.insert(payload.end(), bytes, bytes + 4);
@@ -74,29 +76,77 @@ bool parseBBoxString(const std::string &msg, std::vector<uint8_t> &payload)
 // 回调 1：来自 k4a 的发送请求（需要加包头包尾）
 void k4aCallback(const std_msgs::String::ConstPtr &msg)
 {
-    if (!ser.isOpen()) {
+    if (!ser.isOpen())
+    {
         ROS_WARN_THROTTLE(5.0, "[serial_bridge] serial port not open");
         return;
     }
 
     std::vector<uint8_t> payload;
-    if (!parseBBoxString(msg->data, payload)) {
+    if (!parseBBoxString(msg->data, payload))
+    {
         ROS_WARN_STREAM("[serial_bridge] Invalid k4a bbox: " << msg->data);
         return;
     }
 
-    // 构建帧： HEAD + payload + TAIL  
+    // 构建帧： HEAD + payload + TAIL
     std::vector<uint8_t> packet;
     packet.insert(packet.end(), K4A_HEAD, K4A_HEAD + 2);
     packet.insert(packet.end(), payload.begin(), payload.end());
     packet.insert(packet.end(), K4A_TAIL, K4A_TAIL + 2);
 
-    // 发送二进制数据（使用 const uint8_t*）
-    try {
-        ser.write(packet.data(), packet.size());
-    } catch (const std::exception &e) {
-        ROS_ERROR_STREAM("[serial_bridge] serial write failed: " << e.what());
+    // 打印函数 
+    auto print_hex = [&](const std::vector<uint8_t> &data)
+    {
+        std::stringstream ss;
+        ss << std::hex << std::uppercase << std::setfill('0');
+        for (auto b : data)
+            ss << std::setw(2) << static_cast<int>(b) << " ";
+        ROS_INFO_STREAM("[TX HEX] " << ss.str());
+    };
+
+auto print_raw_payload = [&](const std::vector<uint8_t> &payload)
+{
+    if (payload.size() != 1 + 4*4) {
+        ROS_WARN("[TX PAYLOAD] size mismatch");
         return;
     }
 
+    uint8_t cls = payload[0];
+
+    auto read_float = [&](int offset){
+        float v;
+        std::memcpy(&v, payload.data() + offset, 4);
+        return v;
+    };
+
+    float x   = read_float(1);
+    float y   = read_float(5);
+    float z   = read_float(9);
+    float yaw = read_float(13);
+
+    ROS_INFO_STREAM("[TX Payload Human] "
+                    << "ID=" << static_cast<int>(cls)
+                    << ", x=" << x
+                    << ", y=" << y
+                    << ", z=" << z
+                    << ", yaw=" << yaw);
+};
+
+    // 打印
+    print_hex(packet);          // HEX（带包头包尾）
+    print_raw_payload(payload); //原始数据
+
+
+
+    // 发送二进制数据（使用 const uint8_t*）
+    try
+    {
+        ser.write(packet.data(), packet.size());
+    }
+    catch (const std::exception &e)
+    {
+        ROS_ERROR_STREAM("[serial_bridge] serial write failed: " << e.what());
+        return;
+    }
 }

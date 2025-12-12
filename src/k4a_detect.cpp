@@ -89,14 +89,14 @@ int main(
 
             k4a_device.Depth_With_Mask(depth_display, detections); // 用显示图，不用原始 CV_16U
 
-            if (frame_id % 5 == 0)
-            {
-                std::cout << "Class_ID: " << bbox.cls_ID
-                          << " Center: [" << bbox.center.x << ", "
-                          << bbox.center.y << ", "
-                          << bbox.center.z << "."
-                          << bbox.principal_dir[0]<< "/n";
-            }
+            // if (frame_id % 5 == 0)
+            // {
+            //     std::cout << "Class_ID: " << bbox.cls_ID
+            //               << " Center: [" << bbox.center.x << ", "
+            //               << bbox.center.y << ", "
+            //               << bbox.center.z << "."
+            //               << bbox.principal_dir[0]<< std::endl;
+            // }
 #ifdef BUILD_WITH_ROS
             // ---- 发布 ROS 简化后的消息 ----
             std_msgs::String msg;

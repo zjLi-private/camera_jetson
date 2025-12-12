@@ -8,7 +8,7 @@ int main(int argc, char **argv)
 
     std::string port;
     int baud = 115200; //波特率设置
-    pnh.param<std::string>("port", port, "/dev/ttyUSB0");
+    pnh.param<std::string>("port", port, "/dev/camera");
     pnh.param<int>("baudrate", baud, 115200);
 
     try {
