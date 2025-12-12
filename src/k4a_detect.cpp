@@ -48,7 +48,7 @@ int main(
         K4a k4a_device; // 类里是构造函数，自动调用configuration函数
         // k4a_device.Configuration(); //不要有这一句，会报错
         Yolo yolo; // 实例化类
-        std::string engine_path = "/home/pi/workspace/camera_ws/src/camera_bridge/workspace/model_test/best.engine";
+        std::string engine_path = "/home/pi/workspace/camera_ws/src/camera_bridge/workspace/model_test/best2.engine";
         yolo::BoxArray detections;
 
         bool first_cloud = true;                                                       // 第一次生成点云

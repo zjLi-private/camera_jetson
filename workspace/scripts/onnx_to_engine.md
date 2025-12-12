@@ -6,7 +6,12 @@
 第三行保存地址也改一下
 可以直接运行  
 ```
-                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                     
+trtexec \
+    --onnx=/home/pi/workspace/camera_ws/src/camera_bridge/workspace/model_test/best.onnx \
+    --saveEngine=/home/pi/workspace/camera_ws/src/camera_bridge/workspace/model_test/best2.engine  \
+    --fp16 \
+    --workspace=4096 \
+    --verbose                       
 ```
 * 也可以把路径加到环境变量中  
 * `echo 'export PATH=$HOME/TensorRT-8.6.1.6/bin:$PATH' >> ~/.bashrc`
